@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ManiacPrints Admin</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{--bg:#fff;--fg:#111;--mut:#707072;--card:#f5f5f5;--line:#e5e5e5}
+@media (prefers-color-scheme:dark){:root{--bg:#111;--fg:#fff;--mut:#9e9ea0;--card:#1c1c1e;--line:#2c2c2e}}
+*{box-sizing:border-box}
+body{margin:0;padding:32px 4vw;background:var(--bg);color:var(--fg);font-family:"Helvetica Neue",Helvetica,Arial,sans-serif}
+h1{font-family:Impact,"Arial Narrow",sans-serif;font-weight:400;text-transform:uppercase;font-size:40px;margin:0 0 8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin:24px 0}
+.note{background:var(--card);border-radius:8px;padding:16px}
+.mut{color:var(--mut);font-size:14px}
+label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
+input,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}
+.row select{width:auto;padding:6px 8px;font-size:13px}.btn{border:0;border-radius:30px;padding:8px 16px;font-size:14px;font-weight:600;cursor:pointer;background:var(--fg);color:var(--bg)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.row{display:flex;align-items:center;gap:12px;margin:8px 0}
+.row img{width:48px;height:48px;object-fit:cover;border-radius:6px}.row span{flex:1}
+.ord{display:flex;gap:16px;padding:14px 0;border-top:1px solid var(--line);flex-wrap:wrap}.ord svg{width:140px;flex:none;border-radius:8px;background:#ddd}.ord .m{flex:1;min-width:220px;font-size:14px;line-height:1.5}.tag{background:var(--fg);color:var(--bg);border-radius:20px;padding:2px 10px;font-size:12px;font-weight:600}.ord .btn{margin:6px 6px 0 0;text-decoration:none;display:inline-block}
+</style>
+</head>
+<body>
+<h1>ManiacPrints Admin</h1>
+<p class="mut">Photos you add here show on the shop page straight away. <a href="ManiacPrints-20.html">Open shop</a></p>
+<div id="loginBox" class="note" style="max-width:420px"><b>Admin login</b>
+  <label>Email</label><input id="le" type="email" autocomplete="email"><label>Password</label><input id="lp" type="password" autocomplete="current-password">
+  <div style="height:12px"></div><button class="btn" id="lg">Sign in</button> <button class="btn" id="lgg" style="background:transparent;color:var(--fg);border:1px solid var(--fg)">Continue with Google</button></div>
+<p><button class="btn" id="lo" hidden>Sign out</button></p>
+<div id="app" hidden>
+<div class="grid">
+  <div class="note"><b>Home banner photos</b>
+    <div class="mut">Show as the big banner on the home page, with your text on top.</div>
+    <label>Photos (choose several at once)</label><input type="file" id="gf" accept="image/*" multiple>
+    <label>Headline on the photo</label><input id="gc" placeholder="e.g. New drop is here"><label>Sub text (optional)</label><input id="gs" placeholder="e.g. Printed on premium cotton">
+    <label>Language of this photo (picks the banner animation)</label><select id="glang"></select>
+    <div class="mut" style="margin-top:6px">Japanese / Chinese: soft storm &middot; Hindi / Marathi: drifting lotus petals &middot; Urdu: crescent moons &middot; English: light breeze.</div>
+    <div style="height:12px"></div><button class="btn" id="ga">Add banner photos</button>
+    <div id="gl" style="margin-top:16px"></div>
+  </div>
+  <div class="note"><b>Products</b>
+    <div class="mut">Appear in Products and the Customize picker. Use a plain front photo of the tee.</div>
+    <label>Photos (choose several at once)</label><input type="file" id="pf" accept="image/*" multiple>
+    <div class="mut" style="margin-top:6px">The first photo is the plain tee that customers customise. All the photos flash one by one on the shop (up to 6).</div>
+    <label>Category (where it shows in Collections)</label><select id="pcat"></select>
+    <label>Name</label><input id="pn" placeholder="e.g. Skull Print Tee">
+    <label>Colour</label><input id="pc" placeholder="e.g. Black">
+    <label>Price (₹)</label><input id="pp" type="number" value="1999">
+    <label>Language the shirt text prints in</label><select id="plang"></select>
+    <div class="mut" style="margin-top:6px">Customers can type in English letters or paste any text. It is written in this language by sound, not translated.</div>
+    <div style="height:12px"></div><button class="btn" id="pa">Add product</button>
+    <div id="pl" style="margin-top:16px"></div>
+  </div>
+  </div>
+<div class="note" style="margin-bottom:16px"><b>Orders</b><div id="ol" style="margin-top:12px"></div></div>
+</div>
+<div class="note"><b>Status</b><p class="mut" id="msg">Connecting…</p></div>
+<script>
+/* ===== FIREBASE: paste the SAME web-app config you used in the shop file ===== */
+var FB_CONFIG={apiKey:"AIzaSyDEQ39jNypcqjNvK3VF9awPPHKo4AxLlNc",authDomain:"maniac-711a2.firebaseapp.com",projectId:"maniac-711a2",storageBucket:"maniac-711a2.firebasestorage.app",messagingSenderId:"717082911075",appId:"1:717082911075:web:7419d1b91a121009feb356"};
+firebase.initializeApp(FB_CONFIG);
+var AUTH=firebase.auth(),FS=firebase.firestore(),SUBS=[];
+</script>
+<script>
+var $=function(i){return document.getElementById(i)},db=null,L=[],O=[],LANGS={en:'English',hi:'Hindi (हिन्दी)',mr:'Marathi (मराठी)',te:'Telugu (తెలుగు)',ja:'Japanese (日本語)',zh:'Chinese (中文)',ur:'Urdu (اردو)'};
+var CATS={tee:'T-Shirt',over:'Oversized Tee',terry:'Oversized Terry',hoodie:'Hoodie'};
+function catOpts(sel){return Object.keys(CATS).map(function(k){return '<option value="'+k+'"'+(k===sel?' selected':'')+'>'+CATS[k]+'</option>'}).join('')}
+function langOpts(sel){return Object.keys(LANGS).map(function(k){return '<option value="'+k+'"'+(k===sel?' selected':'')+'>'+LANGS[k]+'</option>'}).join('')}
+$('plang').innerHTML=langOpts('en');$('pcat').innerHTML=catOpts('tee');
+function gOpts(s){return '<option value=""'+(s?'':' selected')+'>No animation</option>'+langOpts(s)}
+$('glang').innerHTML='<option value="" selected>Choose language…</option>'+langOpts('');
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function say(t){$('msg').textContent=t}
+function shrink(f,max,lim){return new Promise(function(ok,no){
+  var im=new Image(),u=URL.createObjectURL(f);
+  im.onerror=function(){URL.revokeObjectURL(u);no(new Error(f.name+' is not a readable image'))};
+  im.onload=function(){
+    var m=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas'),x,d,k=0,q=.95;
+    /* keep quality high: lower the JPEG quality only a little first, shrink the size only if still too big */
+    do{c.width=Math.round(im.width*m);c.height=Math.round(im.height*m);x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.imageSmoothingQuality='high';x.drawImage(im,0,0,c.width,c.height);d=c.toDataURL('image/jpeg',q);if(d.length>(lim||180000)){if(q>.86)q-=.045;else m*=.88}}while(d.length>(lim||180000)&&k++<12);
+    URL.revokeObjectURL(u);ok(d)};
+  im.src=u})}
+function list(kind){
+  var h=L.filter(function(x){return x.kind===kind}).map(function(x){return '<div class="row"><img src="'+x.img+'" alt=""><span>'+esc(x.name||'Untitled photo')+(x.sub?' · '+esc(x.sub):'')+(x.colour?' · '+esc(x.colour):'')+(kind==='product'?' · ₹'+esc(x.price):'')+(kind==='product'&&x.imgs&&x.imgs.length?' · '+(x.imgs.length+1)+' photos':'')+'</span>'+(kind==='product'?'<select data-ct="'+x.id+'" title="Category">'+catOpts(x.cat||'tee')+'</select><select data-lg="'+x.id+'" title="Text language">'+langOpts(x.lang||'en')+'</select>':kind==='gallery'?'<select data-lg="'+x.id+'" title="Banner animation">'+gOpts(x.lang||'')+'</select>':'')+(kind==='gallery'?'<button class="btn" data-ed="'+x.id+'">Edit text</button>':'')+'<button class="btn" data-id="'+x.id+'">Delete</button></div>'}).join('');
+  return h||'<span class="mut">Nothing added yet.</span>';
+}
+function render(){$('gl').innerHTML=list('gallery');$('pl').innerHTML=list('product');drawOrders()}
+function tdet(o){var t=o.texts||[],n=o.textCount!=null?o.textCount:t.length;
+  return '<b>'+n+' text'+(n===1?'':'s')+'</b> · prints in '+esc(o.langName||LANGS[o.lang]||'English')+(o.hasPicture?' · + 1 picture'+(o.picture?' (size '+o.picture.size+'%, x '+o.picture.x+'%, y '+o.picture.y+'%)':''):'')+
+  t.map(function(y,k){return '<br>#'+(k+1)+' typed “'+esc(y.raw)+'”'+(y.raw!==y.txt?' → printed <b>'+esc(y.txt)+'</b>':'')+' · '+esc(y.font)+' · <i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+esc(y.color)+';border:1px solid #888"></i> '+esc(y.color)+' · size '+y.size+' · pos '+y.x+'%,'+y.y+'% · '+esc(y.direction||'Horizontal')}).join('')}
+function payHtml(o){var p=o.payment||{},ps=o.payStatus||'No payment info',ok=/verified/i.test(ps),bad=/not received/i.test(ps);
+  return '<span style="display:inline-block;margin:4px 0;padding:6px 10px;border-radius:8px;background:'+(ok?'#d9f7e1':bad?'#fde0e0':'#fff3cd')+'"><b>'+esc(ps)+'</b>'+(p.utr?' · UTR: <b style="user-select:all">'+esc(p.utr)+'</b>':'')+(p.amount?' · Paid ₹'+esc(p.amount):'')+(p.upiId?' · to '+esc(p.upiId):'')+'</span>'}
+function drawOrders(){
+  var h=O.map(function(x,i){var o=x.o;return '<div class="ord"><img src="'+(o.preview||'')+'" alt="" style="width:140px;border-radius:8px;flex:none;align-self:flex-start;background:#ddd"><div class="m"><span class="tag">'+esc(o.status||'New')+'</span> '+new Date(o.ts).toLocaleString()+' · #'+esc(x.id.slice(-6).toUpperCase())+'<br><b>'+esc(o.name)+'</b> · '+esc(o.phone)+(o.email?' · '+esc(o.email):'')+'<br>'+esc(o.address)+'<br>'+esc(o.pname||'')+' '+esc(o.color||'')+' · '+esc(o.shirt||'black')+' · '+(CATS[o.cat||'tee']||'T-Shirt')+' · '+esc(o.size)+' · ×'+o.qty+' · ₹'+o.total+'<br>'+tdet(o)+'<br>'+payHtml(o)+'<br><button class="btn" data-i="'+i+'" data-pay="Payment verified">Mark paid</button><button class="btn" data-i="'+i+'" data-pay="Payment NOT received">Not received</button><button class="btn" data-i="'+i+'" data-st="Printing">Printing</button><button class="btn" data-i="'+i+'" data-st="Shipped">Shipped</button><button class="btn" data-i="'+i+'" data-st="Delivered">Delivered</button><button class="btn" data-dl="'+x.id+'">Design PNG</button></div></div>'}).join('');
+  $('ol').innerHTML=h?'<b>'+O.length+'</b> orders · revenue <b>₹'+O.reduce(function(s,x){return s+(x.o.total||0)},0).toLocaleString('en-IN')+'</b>'+h:'<span class="mut">No orders yet. Orders placed on the shop appear here.</span>';
+}
+async function dlDesign(id,btn){btn.disabled=true;try{var d=await db.collection('orders').doc(id).collection('files').doc('design').get();if(!d.exists)throw new Error('design file not found');var a=document.createElement('a');a.href=d.data().png;a.download='design-'+id+'.png';document.body.appendChild(a);a.click();a.remove()}catch(e){say('Could not download: '+(e.message||e.code))}btn.disabled=false}
+document.addEventListener('click',function(e){var d=e.target.dataset;if(!d||!db)return;
+  if(d.pay){var y=O[+d.i],g=y.o.groupId;O.filter(function(q){return q.id===y.id||(g&&q.o.groupId===g)}).forEach(function(q){db.collection('orders').doc(q.id).update({payStatus:d.pay,payUpdated:Date.now()}).catch(function(er){say('Payment update failed: '+er.message)})})}
+  else if(d.st){var x=O[+d.i];db.collection('orders').doc(x.id).update({status:d.st}).catch(function(er){say('Status update failed: '+er.message)})}
+  else if(d.dl)dlDesign(d.dl,e.target)});
+function put(kind,img,extra){return db.collection('products').doc(kind[0]+Date.now().toString(36)+Math.random().toString(36).slice(2,5)).set(Object.assign({ts:Date.now(),kind:kind,img:img},extra))}
+document.body.onclick=function(e){var id=e.target.dataset&&e.target.dataset.id;if(id&&db&&confirm('Delete this item from the shop?'))db.collection('products').doc(id).delete().then(function(){say('Deleted.')})};
+document.addEventListener('click',function(e){var id=e.target.dataset&&e.target.dataset.ed;if(!id||!db)return;var x=L.filter(function(q){return q.id===id})[0];if(!x)return;var h=prompt('Headline on the photo',x.name||'');if(h===null)return;var s=prompt('Sub text (optional)',x.sub||'');if(s===null)return;db.collection('products').doc(id).update({name:h.trim(),sub:s.trim()}).then(function(){say('Text updated.')})});
+document.addEventListener('change',function(e){var ct=e.target.dataset&&e.target.dataset.ct;if(ct&&db){db.collection('products').doc(ct).update({cat:e.target.value}).then(function(){say('Category changed to '+CATS[e.target.value]+'.')});return}var id=e.target.dataset&&e.target.dataset.lg;if(!id||!db)return;db.collection('products').doc(id).update({lang:e.target.value}).then(function(){say(e.target.value?'Language changed to '+LANGS[e.target.value]+'.':'Animation turned off for this photo.')})});
+$('ga').onclick=async function(){
+  var fs=[].slice.call($('gf').files),cap=$('gc').value.trim(),b=$('ga'),n=0;
+  if(!db){say('Still connecting, try again in a moment.');return}
+  if(!fs.length){say('Choose one or more photos first.');return}
+  if(!$('glang').value){say('Choose the language for these photos first. It decides the animation.');return}
+  b.disabled=true;
+  for(var i=0;i<fs.length;i++){b.textContent='Adding '+(i+1)+' of '+fs.length+'…';
+    try{await put('gallery',await shrink(fs[i],1600,450000),{name:cap,sub:$('gs').value.trim(),lang:$('glang').value});n++}catch(e){say(e.message);break}}
+  b.disabled=false;b.textContent='Add banner photos';
+  if(n){$('gf').value='';$('gc').value='';$('gs').value='';say(n+(n>1?' photos':' photo')+' added to the home banner.')}
+};
+$('pa').onclick=async function(){
+  var all=[].slice.call($('pf').files),fs=all.slice(0,6),n=$('pn').value.trim(),b=$('pa'),i,main,more=[],tot;
+  if(!db){say('Still connecting, try again in a moment.');return}
+  if(!fs.length||!n){say('Choose at least one photo and enter a name.');return}
+  b.disabled=true;
+  try{
+    main=await shrink(fs[0],1600,520000);tot=main.length;
+    for(i=1;i<fs.length;i++){b.textContent='Preparing photo '+(i+1)+' of '+fs.length+'…';var d=await shrink(fs[i],1200,180000);more.push(d);tot+=d.length}
+    if(tot>950000)throw new Error('These photos are too large together. Choose fewer photos.');
+    b.textContent='Adding…';
+    await put('product',main,{name:n,colour:$('pc').value.trim(),price:$('pp').value||'1999',lang:$('plang').value,cat:$('pcat').value,imgs:more});
+    $('pf').value='';$('pn').value='';$('pc').value='';
+    say('Product added in '+CATS[$('pcat').value]+' with '+fs.length+(fs.length>1?' photos that flash':' photo')+', printing in '+LANGS[$('plang').value]+'.'+(all.length>6?' Only the first 6 photos were used.':''))}
+  catch(e){say(e.message)}
+  b.disabled=false;b.textContent='Add product'
+};
+function stopSubs(){SUBS.forEach(function(f){f()});SUBS=[]}
+function startSubs(){
+  SUBS.push(db.collection('orders').orderBy('ts','desc').onSnapshot(function(snap){O=snap.docs.map(function(q){return{id:q.id,o:q.data()}});drawOrders()},function(e){say('Could not load orders: '+e.message)}));
+  SUBS.push(db.collection('products').orderBy('ts','desc').onSnapshot(function(s){L=s.docs.map(function(q){var x=q.data();x.id=q.id;return x});render()},function(e){say('Could not load: '+e.message)}));
+}
+$('lg').onclick=function(){say('Signing in…');AUTH.signInWithEmailAndPassword($('le').value.trim(),$('lp').value).catch(function(e){say('Sign in failed: '+(e.code||e.message))})};
+$('lgg').onclick=function(){say('Opening Google…');AUTH.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(function(e){say(e.code==='auth/unauthorized-domain'?'This website address is not allowed yet. In Firebase > Authentication > Settings > Authorized domains, add: '+location.hostname:'Google sign in failed: '+(e.code||e.message))})};
+$('lo').onclick=function(){AUTH.signOut()};
+AUTH.onAuthStateChanged(function(u){
+  stopSubs();db=null;O=[];L=[];$('app').hidden=true;$('lo').hidden=!u;$('loginBox').hidden=!!u;
+  if(!u){say('Sign in with your admin account.');return}
+  FS.collection('admins').doc(u.uid).get().then(function(s){
+    if(!s.exists){say('Signed in as '+u.email+', but this account is not an admin yet. In Firebase console > Firestore > create collection "admins" > add a document whose Document ID is exactly: '+u.uid+' (any field, e.g. email). Then reload this page.');return}
+    db=FS;$('app').hidden=false;startSubs();say('Connected as '+u.email+'. Anything you add here appears on the shop page right away.')
+  }).catch(function(e){say('Could not check admin access: '+e.message)})});
+render();
+</script>
+</body>
+</html>
